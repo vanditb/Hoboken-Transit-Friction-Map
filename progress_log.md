@@ -1,8 +1,6 @@
 # Progress Log
 
-## meeting update framing
-
-minimum good update:
+update:
 
 - GitHub repo organized
 - data source table added
@@ -10,8 +8,6 @@ minimum good update:
 - Citi Bike API tested
 - simple Citi Bike dataframe created
 - basic map started
-
-strong update:
 
 - all of the minimum update items
 - Streamlit app shows Citi Bike stations near Hoboken
