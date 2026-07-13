@@ -14,7 +14,9 @@ NWS_POINTS_URL = "https://api.weather.gov/points/40.7433,-74.0324"
 NWS_HEADERS = {
     "User-Agent": "Hoboken Transit Friction Map student prototype (contact: vanditb)",
 }
-CONSTRUCTION_DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "construction_layer.csv"
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+CONSTRUCTION_IMPACTS_PATH = DATA_DIR / "construction_impacts.csv"
+OLD_CONSTRUCTION_LAYER_PATH = DATA_DIR / "construction_layer.csv"
 
 HOBOKEN_CENTER = [40.7433, -74.0324]
 HOBOKEN_LAT_MIN = 40.730
@@ -60,9 +62,11 @@ def load_weather_data():
 
 @st.cache_data
 def load_construction_data():
-    if not CONSTRUCTION_DATA_PATH.exists():
-        return pd.DataFrame()
-    return pd.read_csv(CONSTRUCTION_DATA_PATH)
+    if CONSTRUCTION_IMPACTS_PATH.exists():
+        return pd.read_csv(CONSTRUCTION_IMPACTS_PATH)
+    if OLD_CONSTRUCTION_LAYER_PATH.exists():
+        return pd.read_csv(OLD_CONSTRUCTION_LAYER_PATH)
+    return pd.DataFrame()
 
 
 def clamp_score(value):
