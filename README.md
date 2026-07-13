@@ -17,3 +17,21 @@ This sprint adds a simple National Weather Service score and combines it with bi
 ## What the App Does
 
 - loads live Citi Bike stations near Hoboken
+- switches between "need a bike" and "need a dock" modes
+- loads the near-term National Weather Service forecast for Hoboken
+- calculates bike, weather, and combined friction scores
+- colors Citi Bike stations by the combined score when weather is available
+- shows a small manual construction layer with separate blue markers
+- falls back to bike friction if weather cannot be loaded
+
+## Data Sources
+
+- Citi Bike GBFS station information and station status
+- National Weather Service forecast API
+- Hoboken construction updates, manually transcribed for the first test layer
+
+The full source inventory and current statuses are in `data_sources.md`.
+
+## Planned Next Steps
+
+- verify the manual construction rows and coordinates
