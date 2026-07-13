@@ -40,3 +40,16 @@ def main():
     missing_coordinates = construction[["lat", "lon"]].isna().any(axis=1).sum()
     if missing_coordinates:
         print(f"Warning: {missing_coordinates} rows are missing latitude or longitude.")
+    else:
+        print("All rows have coordinates. The notes should identify approximate coordinates.")
+
+    print("\nSample rows:")
+    print(
+        construction[["project_name", "street", "impact_type", "lat", "lon"]]
+        .head()
+        .to_string(index=False)
+    )
+
+
+if __name__ == "__main__":
+    main()
