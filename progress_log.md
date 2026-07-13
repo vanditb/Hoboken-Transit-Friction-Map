@@ -105,3 +105,33 @@ next steps:
 - investigate whether the Hoboken Mapping Hub exposes useful ArcGIS layers
 - decide how construction distance and severity should affect a station score
 - get feedback on the 70/30 bike and weather weighting
+
+## construction line impact sprint
+
+worked on:
+
+- changed the construction layer from marker-only to point + line impacts
+- added `data/construction_impacts.csv`
+- added dashed construction lines to the map for impacted street segments
+- kept old `construction_layer.csv` in the repo as the earlier simple marker version
+- updated the construction data test so it checks point rows and line rows differently
+
+what works:
+
+- point construction rows can still show as blue markers
+- line/corridor construction rows can show as dashed orange or red lines
+- the construction table now includes the geometry type and traffic management notes
+- the numeric friction score is still just bike + weather, which is safer for now
+
+rough parts / things I noticed:
+
+- the city construction information is more map-like than I first realized because some impacts are dotted corridors, not just single locations
+- I had to use approximate start and end coordinates for the first line segments
+- the CSV is useful for testing the idea, but it is still manual and needs verification
+- I still need to figure out whether the embedded map has a GIS layer or API behind it
+
+next steps:
+
+- verify the approximate line coordinates against the Hoboken map
+- ask Professor Odonkor whether line impacts should affect nearby Citi Bike stations
+- investigate whether construction lines can be pulled automatically from a GIS/API source later
