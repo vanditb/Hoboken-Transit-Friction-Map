@@ -16,3 +16,8 @@ This is my working source inventory. The statuses describe what is actually bein
 | PATH | https://www.panynj.gov/path/en/index.html | PATH service information and alerts | Live/changing | Unknown for a reusable public feed | Service changes near Hoboken Terminal could raise transit friction | Stretch |
 | 511NJ | https://www.511nj.org/ | Regional traffic incidents, construction, and road conditions | Live/changing | Needs investigation | Could add regional road closures or incidents | Stretch |
 
+## Construction Notes
+
+The Hoboken construction page has the information I need, but it is mixed into webpage text instead of clean JSON. The first version uses a small manual CSV with the fields needed by the map. Later I can investigate responsible scraping, downloadable ArcGIS layers, or another stable city source.
+
+The current manual rows should always keep the city source URL and a note when coordinates are approximate.
