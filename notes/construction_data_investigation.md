@@ -22,3 +22,10 @@ I manually entered a few rows in `data/construction_layer.csv` to test the field
 - Would scraping this changing webpage be responsible and allowed?
 - What fields do we actually need for the research question?
 - Should one project with several street impacts become several CSV rows?
+- How often would a manual or automated layer need to refresh?
+
+## Current Conclusion
+
+Citi Bike data is clean and already structured for code. Construction data seems less clean and changes in a more human-written format. For the first prototype, a manual CSV is probably the safest way to test the map and decide which fields matter.
+
+Later I can try automated extraction if I find a stable API, ArcGIS layer, or page structure. I should check that direction with Professor Odonkor before spending too much time building a scraper.
