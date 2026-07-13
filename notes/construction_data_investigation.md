@@ -14,3 +14,11 @@ The difficult part is that the details are written as sections and bullet points
 
 I manually entered a few rows in `data/construction_layer.csv` to test the fields and map display. The latitude and longitude values are approximate points near the affected street segments, not official construction coordinates.
 
+## Questions
+
+- Is there a public API behind the construction page?
+- Is any embedded or linked map using ArcGIS feature layers?
+- Can a useful layer be downloaded from the Hoboken Mapping Hub?
+- Would scraping this changing webpage be responsible and allowed?
+- What fields do we actually need for the research question?
+- Should one project with several street impacts become several CSV rows?
