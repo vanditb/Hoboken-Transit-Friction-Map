@@ -54,3 +54,21 @@ The full source inventory and current statuses are in `data_sources.md`.
 Install dependencies:
 
 ```bash
+python3 -m pip install -r requirements.txt
+```
+
+Run the API and CSV checks:
+
+```bash
+python3 api_tests/test_citibike.py
+python3 api_tests/test_weather.py
+python3 api_tests/test_construction_data.py
+```
+
+Run the app:
+
+```bash
+python3 -m streamlit run src/app.py
+```
+
+Rerunning or using the refresh button pulls the newest Citi Bike and weather data. The construction CSV does not update automatically yet.
