@@ -4,63 +4,16 @@ An interactive smart-city mobility map for showing where movement through Hoboke
 
 Google Maps tells you the fastest route. This project tries to show why movement through a city becomes harder in certain places.
 
-This is an early v0 research prototype for my work with Professor Philip Odonkor at Stevens. The goal is not to build a full route planner. The goal is to make a simple, explainable map that can start combining live urban data into a "friction" score.
+This is an early research prototype for my work with Professor Philip Odonkor at Stevens. It is not a route planner or a finished city data platform.
 
-## Current Prototype Goal
+## Current Status
 
-The current version focuses on Citi Bike stations near Hoboken. It pulls live GBFS station data, filters stations around Hoboken, and calculates a basic bike friction score.
+The v0 bike friction layer works. The app pulls live Citi Bike station information and status data, filters stations near Hoboken, and scores how hard it may be to find a bike or an open dock.
 
-For v0, bike friction has two modes:
+Right now this is still an early prototype. The first working layer is Citi Bike friction. The next goal is to add weather and construction/road-closure data so the map starts to feel more like a real urban friction tool.
 
-- already in area: friction is high when available bikes are low
-- coming into area: friction is high when available docks are low
+This sprint adds a simple National Weather Service score and combines it with bike friction. It also includes a first manually entered construction CSV and construction markers. Those construction rows and approximate coordinates still need to be checked against the city updates.
 
-## Current Data Sources
+## What the App Does
 
-- Citi Bike GBFS station information
-- Citi Bike GBFS station status
-- National Weather Service API is being tested separately
-
-More data sources are documented in `data_sources.md`.
-
-## Planned Next Layers
-
-- weather friction
-- construction friction
-- transit friction
-- street/network context from OpenStreetMap
-- possible no-parking or lane closure data from Hoboken sources
-
-## Tech Stack
-
-- Python
-- Streamlit
-- pandas
-- requests
-- Folium
-- streamlit-folium
-
-## How to Run
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-On some Macs, use `pip3` and `python3` instead of `pip` and `python`.
-
-Run the API tests:
-
-```bash
-python api_tests/test_citibike.py
-python api_tests/test_weather.py
-```
-
-Run the Streamlit app:
-
-```bash
-streamlit run src/app.py
-```
-
-The app fetches the latest Citi Bike data each time it reruns.
+- loads live Citi Bike stations near Hoboken
