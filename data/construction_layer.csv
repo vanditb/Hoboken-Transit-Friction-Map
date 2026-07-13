@@ -1,1 +1,2 @@
 project_name,street,from_street,to_street,start_date,end_date,start_time,end_time,impact_type,description,friction_level,lat,lon,source_url,notes
+NHSA H6/H7 Phase 3,15th Street,Willow Avenue,Adams Street,2026-07-06,2026-07-08,8:00 AM,6:00 PM,road closure,Street closed during paving and striping work.,high,40.7547,-74.0349,https://www.hobokennj.gov/hoboken-construction-updates,Manually transcribed from the weekly city update; coordinates are approximate and dates should be rechecked.
