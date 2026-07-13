@@ -70,3 +70,38 @@ issues / mistakes / things I noticed:
 - the data source inventory from Google Sheets had more sources than the prototype uses, so I cleaned the repo version to avoid making the project look more complete than it is
 - Streamlit still needs to be installed before I can fully test the app in the browser
 
+## weather and construction sprint
+
+worked on:
+
+- added a first weather layer using the National Weather Service API
+- combined bike friction and weather friction with a simple 70/30 weighting
+- started investigating the Hoboken construction updates page
+- created a manual construction CSV with the fields needed for a map layer
+- added separate construction markers and a construction table to the app
+- cleaned the README, source table, and scoring notes so they match the current prototype
+
+what works:
+
+- the app can show the near-term Hoboken forecast and a simple weather friction score
+- Citi Bike still has the same need-a-bike and need-a-dock modes
+- Citi Bike marker colors use the combined score when weather is available
+- if the weather request fails, the app keeps working with bike friction only
+- manual construction rows with coordinates can appear as separate blue markers
+
+what was confusing / rough:
+
+- some API fields were not named exactly how I expected, especially because wind speed arrives as text instead of one number
+- I realized the construction data is not as clean as the Citi Bike API. The page has useful street closure information, but I still need to figure out whether it can be pulled from a real API or if the first version should just use a manually created CSV
+- construction information can be webpage text instead of clean JSON, and one project can mention several streets or different dates
+- the city page does not give coordinates for every impact, so the first construction layer uses approximate coordinates and labels them that way
+- weather scoring is still simple and needs feedback; the current forecast applies one weather score across all Hoboken stations
+- construction markers are displayed, but construction does not change the combined numeric score yet
+
+next steps:
+
+- verify the manual construction rows and approximate coordinates
+- ask whether construction automation or clearer map presentation should be the next priority
+- investigate whether the Hoboken Mapping Hub exposes useful ArcGIS layers
+- decide how construction distance and severity should affect a station score
+- get feedback on the 70/30 bike and weather weighting
