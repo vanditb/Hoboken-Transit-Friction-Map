@@ -57,7 +57,9 @@ The first idea is:
 - nearby construction or no parking: medium friction
 - road closure, full closure, or detour: high friction
 
-Construction is shown as a separate manual map layer right now. It is not included in the numeric combined score yet because the locations, dates, and severity rules need more checking.
+Construction is shown as a separate manual visual layer right now. It supports point projects and line/corridor impacts, but it is not included in the numeric combined score yet because the source and coordinates are still being investigated.
+
+Later, construction friction could be added by measuring how close Citi Bike stations or street segments are to impacted construction lines. For now, the combined score stays bike + weather only so the score does not pretend the manually entered construction geometry is more accurate than it is.
 
 ## Fallback
 
