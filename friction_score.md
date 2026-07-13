@@ -30,3 +30,19 @@ Already in area:
 ```text
 bike friction = 100 * (1 - bikes available / capacity)
 ```
+
+Coming into area:
+
+```text
+dock friction = 100 * (1 - docks available / capacity)
+```
+
+An offline station gets 100. Missing or zero capacity is treated as unknown, and all scores are clamped from 0 to 100.
+
+## Weather Friction
+
+The app starts at 10 for normal conditions and adds points for forecast words, wind, and uncomfortable temperatures.
+
+- normal weather: low friction
+- rain, strong wind, or uncomfortable heat/cold: medium friction
+- storm, heavy rain, snow, or weather alerts: high friction
