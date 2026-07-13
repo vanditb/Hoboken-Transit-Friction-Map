@@ -46,3 +46,19 @@ The app starts at 10 for normal conditions and adds points for forecast words, w
 - normal weather: low friction
 - rain, strong wind, or uncomfortable heat/cold: medium friction
 - storm, heavy rain, snow, or weather alerts: high friction
+
+This logic is intentionally rough. It uses the first NWS forecast period and still needs feedback on which weather conditions matter most for Hoboken movement.
+
+## Construction Friction
+
+The first idea is:
+
+- no construction nearby: low friction
+- nearby construction or no parking: medium friction
+- road closure, full closure, or detour: high friction
+
+Construction is shown as a separate manual map layer right now. It is not included in the numeric combined score yet because the locations, dates, and severity rules need more checking.
+
+## Fallback
+
+If weather is unavailable, the app uses bike friction by itself and says that clearly. It does not make up weather data.
