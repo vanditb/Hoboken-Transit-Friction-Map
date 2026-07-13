@@ -35,3 +35,22 @@ The full source inventory and current statuses are in `data_sources.md`.
 ## Planned Next Steps
 
 - verify the manual construction rows and coordinates
+- decide whether construction should be automated or kept manual for the next demo
+- improve weather scoring after getting feedback
+- investigate ArcGIS layers in the Hoboken Mapping Hub
+- later add OpenStreetMap street context and transit alerts
+
+## Tech Stack
+
+- Python
+- Streamlit
+- pandas
+- requests
+- Folium
+- streamlit-folium
+
+## How to Run
+
+Install dependencies:
+
+```bash
