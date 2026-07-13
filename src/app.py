@@ -145,6 +145,33 @@ def friction_color(row):
     return "red"
 
 
+def value_or_unknown(row, column):
+    value = row.get(column)
+    if pd.isna(value) or value == "":
+        return "unknown"
+    return value
+
+
+def line_color(friction_level):
+    if str(friction_level).lower() == "high":
+        return "red"
+    return "orange"
+
+
+def construction_popup(project):
+    return f"""
+    <b>{value_or_unknown(project, "project_name")}</b><br>
+    Responsible party: {value_or_unknown(project, "responsible_party")}<br>
+    Location: {value_or_unknown(project, "location")}<br>
+    Impact: {value_or_unknown(project, "impact_type")}<br>
+    Traffic management: {value_or_unknown(project, "traffic_management")}<br>
+    Hours: {value_or_unknown(project, "start_time")} to {value_or_unknown(project, "end_time")}<br>
+    Mode affected: {value_or_unknown(project, "mode_affected")}<br>
+    Friction level: {value_or_unknown(project, "friction_level")}<br>
+    Notes: {value_or_unknown(project, "notes")}
+    """
+
+
 def create_map(stations, construction, mode):
     transit_map = folium.Map(location=HOBOKEN_CENTER, zoom_start=14, tiles="CartoDB positron")
 
