@@ -201,22 +201,36 @@ def create_map(stations, construction, mode):
     bike_layer.add_to(transit_map)
 
     if not construction.empty:
-        construction_layer = folium.FeatureGroup(name="Manual construction layer", show=True)
-        for _, project in construction.dropna(subset=["lat", "lon"]).iterrows():
-            popup_html = f"""
-            <b>{project["project_name"]}</b><br>
-            Street: {project["street"]}<br>
-            Impact: {project["impact_type"]}<br>
-            Hours: {project["start_time"]} to {project["end_time"]}<br>
-            {project["description"]}<br>
-            <i>Manually entered; verify with city source.</i>
-            """
-            folium.Marker(
-                location=[project["lat"], project["lon"]],
-                tooltip=f"Construction: {project['street']}",
-                popup=folium.Popup(popup_html, max_width=320),
-                icon=folium.Icon(color="blue", icon="wrench", prefix="fa"),
-            ).add_to(construction_layer)
+        construction_layer = folium.FeatureGroup(name="Construction impacts", show=True)
+        for _, project in construction.iterrows():
+            geometry_type = str(project.get("geometry_type", "point")).lower()
+            popup = folium.Popup(construction_popup(project), max_width=360)
+
+            if geometry_type == "line":
+                line_columns = ["start_lat", "start_lon", "end_lat", "end_lon"]
+                if project[line_columns].isna().any():
+                    continue
+                folium.PolyLine(
+                    locations=[
+                        [project["start_lat"], project["start_lon"]],
+                        [project["end_lat"], project["end_lon"]],
+                    ],
+                    color=line_color(project.get("friction_level")),
+                    weight=5,
+                    opacity=0.85,
+                    dash_array="8, 8",
+                    tooltip=f"Construction impact: {value_or_unknown(project, 'street')}",
+                    popup=popup,
+                ).add_to(construction_layer)
+            else:
+                if pd.isna(project.get("lat")) or pd.isna(project.get("lon")):
+                    continue
+                folium.Marker(
+                    location=[project["lat"], project["lon"]],
+                    tooltip=f"Construction: {value_or_unknown(project, 'street')}",
+                    popup=popup,
+                    icon=folium.Icon(color="blue", icon="wrench", prefix="fa"),
+                ).add_to(construction_layer)
         construction_layer.add_to(transit_map)
 
     folium.LayerControl(collapsed=False).add_to(transit_map)
@@ -253,7 +267,7 @@ def main():
     )
     st.write(
         "This early prototype uses live Citi Bike and National Weather Service data. A small "
-        "manual construction layer is included to test how street impacts could appear."
+        "manual construction impact layer is included to test points and street segments."
     )
 
     mode = st.radio(
@@ -326,7 +340,7 @@ def main():
     st.subheader("Map")
     st.caption(
         "Bike circles are colored by combined friction when weather is available. "
-        "Blue tool markers are manually entered construction impacts."
+        "Construction impacts are separate: blue markers are points and dashed lines are street segments."
     )
     st_folium(
         create_map(stations, construction, mode),
@@ -336,18 +350,23 @@ def main():
 
     if not construction.empty:
         st.subheader("Construction layer")
-        st.caption("These rows were manually transcribed and use approximate map coordinates.")
+        st.caption(
+            "These rows were manually transcribed. Point and line coordinates are approximate "
+            "and need verification."
+        )
         construction_columns = [
             "project_name",
+            "geometry_type",
             "street",
             "start_date",
             "end_date",
             "impact_type",
-            "description",
+            "traffic_management",
             "notes",
         ]
+        available_columns = [column for column in construction_columns if column in construction.columns]
         st.dataframe(
-            construction[construction_columns],
+            construction[available_columns],
             use_container_width=True,
             hide_index=True,
         )
