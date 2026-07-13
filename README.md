@@ -12,7 +12,9 @@ The v0 bike friction layer works. The app pulls live Citi Bike station informati
 
 Right now this is still an early prototype. The first working layer is Citi Bike friction. The next goal is to add weather and construction/road-closure data so the map starts to feel more like a real urban friction tool.
 
-This sprint adds a simple National Weather Service score and combines it with bike friction. It also includes a first manually entered construction CSV and construction markers. Those construction rows and approximate coordinates still need to be checked against the city updates.
+The app now has Citi Bike + weather friction. Construction is being added as a separate visual impact layer, but it is not part of the numeric score yet.
+
+The construction layer moved from a simple marker-only CSV to `data/construction_impacts.csv`, which can represent both point projects and line/corridor impacts. The manual construction rows and approximate coordinates still need to be checked against the city updates.
 
 ## What the App Does
 
@@ -21,21 +23,22 @@ This sprint adds a simple National Weather Service score and combines it with bi
 - loads the near-term National Weather Service forecast for Hoboken
 - calculates bike, weather, and combined friction scores
 - colors Citi Bike stations by the combined score when weather is available
-- shows a small manual construction layer with separate blue markers
+- shows a small manual construction layer with point projects and dashed street/corridor impacts
 - falls back to bike friction if weather cannot be loaded
 
 ## Data Sources
 
 - Citi Bike GBFS station information and station status
 - National Weather Service forecast API
-- Hoboken construction updates, manually transcribed for the first test layer
+- Hoboken construction updates, manually transcribed into a point + line impact CSV for the first test layer
 
 The full source inventory and current statuses are in `data_sources.md`.
 
 ## Planned Next Steps
 
-- verify the manual construction rows and coordinates
+- verify the manual construction rows and point/line coordinates
 - decide whether construction should be automated or kept manual for the next demo
+- decide how construction lines should eventually affect friction scores
 - improve weather scoring after getting feedback
 - investigate ArcGIS layers in the Hoboken Mapping Hub
 - later add OpenStreetMap street context and transit alerts
