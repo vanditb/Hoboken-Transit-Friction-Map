@@ -4,4 +4,4 @@ A later direction for this project could be a simple model or agent that periodi
 
 For example, the system could refresh every few hours and note that friction increased because rain started, bike availability dropped, or a road closure became active.
 
-This is not part of the current v1. The current priority is getting the real data layers working, understanding their limitations, and keeping the scoring easy to explain. Once the inputs are more dependable, a dynamic friction model would make more sense.
+This is not part of the current v1. The current priority is getting the real data layers working, understanding their limitations, and keeping the scoring easy to explain. The first model question is narrower: whether a station will have too few bikes or docks in about one hour. Once the inputs are more dependable, a dynamic friction model would make more sense.

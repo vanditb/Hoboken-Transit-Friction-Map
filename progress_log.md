@@ -135,3 +135,39 @@ next steps:
 - verify the approximate line coordinates against the Hoboken map
 - ask Professor Odonkor whether line impacts should affect nearby Citi Bike stations
 - investigate whether construction lines can be pulled automatically from a GIS/API source later
+
+## road geometry, construction scoring, and history sprint
+
+worked on:
+
+- audited the repository after July 13 before changing the code; there were no commits strictly after that date
+- investigated the Hoboken construction map and found public ArcGIS point and line FeatureServer layers behind it
+- added construction verification, active-status, geometry-method, and source-text fields to the manual CSV
+- added an impact-mode filter for biking, walking, driving, and parking
+- kept the old bike + weather score as the baseline and added a separate experimental construction score option
+- added OSMnx road-snapping for the manual line anchors, with a straight fallback line when routing is unavailable
+- added a historical Citi Bike snapshot collector and a first prediction notebook that waits for real data before training
+
+what worked:
+
+- the city ArcGIS line layer returned project fields and polyline geometry during the source audit
+- the road graph loaded, anchor snapping worked, and a road route with multiple points was found in the road geometry test
+- the construction CSV validator passed with 4 rows, 3 line rows, 1 point row, and 1 expired row
+- the live Citi Bike check returned 34 Hoboken-area stations during testing
+- the NWS test returned forecast periods during testing
+- one real history snapshot was saved with 34 station rows on 2026-07-27
+- the browser check switched between need-a-bike/need-a-dock, baseline/experimental scoring, Biking construction filtering, straight fallback lines, and live refresh without a crash
+
+real issues I ran into:
+
+- the first OSMnx route test failed because its nearest-node helper expected the optional scikit-learn package on an unprojected graph
+- I replaced that helper with a small direct nearest-node search because Hoboken is small and I did not need to add a machine-learning package only for map routing
+- I could not reproduce one exact original map-glitch crash from the committed repository, so the debugging note only documents the safeguards added and the remaining uncertainty
+- the local Python still prints an urllib3/LibreSSL warning during requests, but the live Citi Bike, weather, collector, and road tests completed
+
+next steps:
+
+- decide with Professor Odonkor whether the public ArcGIS layer should become a reviewed automatic import or stay as a verification reference
+- continue collecting 15-minute snapshots across more days before training a prediction model
+- validate the experimental construction-distance assumptions against real station behavior
+- review the construction rows again when the city updates change
