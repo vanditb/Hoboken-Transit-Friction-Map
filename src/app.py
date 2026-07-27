@@ -1,4 +1,5 @@
-import re
+"""Streamlit entry point for the Hoboken Transit Friction Map prototype."""
+
 from pathlib import Path
 
 import folium
@@ -7,13 +8,24 @@ import requests
 import streamlit as st
 from streamlit_folium import st_folium
 
+from road_geometry import load_hoboken_graph, route_between_anchors
+from scoring import (
+    BASELINE_WEIGHTS,
+    EXPERIMENTAL_WEIGHTS,
+    calculate_bike_friction,
+    calculate_construction_friction,
+    calculate_weather_friction,
+    combine_scores,
+    project_affects_mode,
+)
+
 
 STATION_INFO_URL = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_information.json"
 STATION_STATUS_URL = "https://gbfs.lyft.com/gbfs/2.3/bkn/en/station_status.json"
 NWS_POINTS_URL = "https://api.weather.gov/points/40.7433,-74.0324"
-NWS_HEADERS = {
-    "User-Agent": "Hoboken Transit Friction Map student prototype (contact: vanditb)",
-}
+NWS_HEADERS = {"User-Agent": "Hoboken Transit Friction Map student prototype (contact: vanditb)"}
+REQUEST_TIMEOUT_SECONDS = 20
+
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 CONSTRUCTION_IMPACTS_PATH = DATA_DIR / "construction_impacts.csv"
 OLD_CONSTRUCTION_LAYER_PATH = DATA_DIR / "construction_layer.csv"
@@ -24,44 +36,44 @@ HOBOKEN_LAT_MAX = 40.760
 HOBOKEN_LON_MIN = -74.050
 HOBOKEN_LON_MAX = -74.010
 
-MODE_NEED_BIKE = "already in area — need a bike"
-MODE_NEED_DOCK = "coming into area — need a dock"
+MODE_NEED_BIKE = "already in area - need a bike"
+MODE_NEED_DOCK = "coming into area - need a dock"
+BASELINE_MODE = "Baseline: bike + weather"
+EXPERIMENTAL_MODE = "Experimental: bike + weather + construction"
 
 
 def fetch_json(url, headers=None):
-    response = requests.get(url, headers=headers, timeout=20)
+    response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS)
     response.raise_for_status()
     return response.json()
 
 
 @st.cache_data(ttl=60)
-def load_citibike_data():
+def fetch_citibike_data():
+    """Fetch and merge live GBFS feeds, then keep only the Hoboken study area."""
     station_info = fetch_json(STATION_INFO_URL)
     station_status = fetch_json(STATION_STATUS_URL)
-
     info_df = pd.DataFrame(station_info["data"]["stations"])
     status_df = pd.DataFrame(station_status["data"]["stations"])
-
-    merged = info_df.merge(status_df, on="station_id", how="inner")
-
-    hoboken_stations = merged[
-        (merged["lat"].between(HOBOKEN_LAT_MIN, HOBOKEN_LAT_MAX))
-        & (merged["lon"].between(HOBOKEN_LON_MIN, HOBOKEN_LON_MAX))
+    stations = info_df.merge(status_df, on="station_id", how="inner")
+    return stations[
+        stations["lat"].between(HOBOKEN_LAT_MIN, HOBOKEN_LAT_MAX)
+        & stations["lon"].between(HOBOKEN_LON_MIN, HOBOKEN_LON_MAX)
     ].copy()
-
-    return hoboken_stations
 
 
 @st.cache_data(ttl=900)
-def load_weather_data():
+def fetch_weather_data():
+    """Fetch one near-term NWS period for Hoboken."""
     point_data = fetch_json(NWS_POINTS_URL, headers=NWS_HEADERS)
     forecast_url = point_data["properties"]["forecast"]
     forecast_data = fetch_json(forecast_url, headers=NWS_HEADERS)
     return forecast_data["properties"]["periods"][0]
 
 
-@st.cache_data
+@st.cache_data(ttl=300)
 def load_construction_data():
+    """Use the newer point-and-line CSV, with the old point CSV as a fallback."""
     if CONSTRUCTION_IMPACTS_PATH.exists():
         return pd.read_csv(CONSTRUCTION_IMPACTS_PATH)
     if OLD_CONSTRUCTION_LAYER_PATH.exists():
@@ -69,78 +81,23 @@ def load_construction_data():
     return pd.DataFrame()
 
 
-def clamp_score(value):
-    return max(0, min(100, value))
+@st.cache_resource
+def get_hoboken_graph():
+    """Keep the OSM street graph in the Streamlit session once it is loaded."""
+    return load_hoboken_graph()
 
 
 def is_station_offline(row):
     return row.get("is_renting") == 0 or row.get("is_returning") == 0
 
 
-def calculate_friction(row, mode):
-    if is_station_offline(row):
-        return 100
-
-    capacity = row.get("capacity")
-    if pd.isna(capacity) or capacity <= 0:
-        return None
-
-    if mode == MODE_NEED_BIKE:
-        available = row.get("num_bikes_available")
-    else:
-        available = row.get("num_docks_available")
-
-    if pd.isna(available):
-        return None
-
-    score = 100 * (1 - available / capacity)
-    return round(clamp_score(score), 1)
-
-
-def parse_wind_speed(wind_text):
-    speeds = re.findall(r"\d+", str(wind_text))
-    return max([int(speed) for speed in speeds], default=0)
-
-
-def calculate_weather_friction(period):
-    score = 10
-    forecast = period.get("shortForecast", "").lower()
-
-    if any(word in forecast for word in ["rain", "shower", "thunderstorm", "snow"]):
-        score += 30
-    if any(word in forecast for word in ["heavy", "storm", "blizzard"]):
-        score += 30
-
-    wind_speed = parse_wind_speed(period.get("windSpeed", ""))
-    if wind_speed >= 25:
-        score += 30
-    elif wind_speed >= 15:
-        score += 15
-
-    temperature = period.get("temperature")
-    if isinstance(temperature, (int, float)):
-        if temperature >= 95 or temperature <= 25:
-            score += 25
-        elif temperature >= 85 or temperature <= 40:
-            score += 10
-
-    return round(clamp_score(score), 1)
-
-
-def calculate_combined_friction(bike_friction, weather_friction):
-    if pd.isna(bike_friction):
-        return None
-    if weather_friction is None:
-        return bike_friction
-    return round(0.7 * bike_friction + 0.3 * weather_friction, 1)
-
-
-def friction_color(row):
-    if is_station_offline(row) or pd.isna(row["combined_friction"]):
+def score_color(row):
+    score = row.get("combined_friction")
+    if is_station_offline(row) or pd.isna(score):
         return "gray"
-    if row["combined_friction"] < 35:
+    if score < 35:
         return "green"
-    if row["combined_friction"] < 70:
+    if score < 70:
         return "orange"
     return "red"
 
@@ -152,75 +109,81 @@ def value_or_unknown(row, column):
     return value
 
 
-def line_color(friction_level):
-    if str(friction_level).lower() == "high":
-        return "red"
-    return "orange"
-
-
-def construction_popup(project):
+def construction_popup(project, geometry_note):
     return f"""
-    <b>{value_or_unknown(project, "project_name")}</b><br>
-    Responsible party: {value_or_unknown(project, "responsible_party")}<br>
-    Location: {value_or_unknown(project, "location")}<br>
-    Impact: {value_or_unknown(project, "impact_type")}<br>
-    Traffic management: {value_or_unknown(project, "traffic_management")}<br>
-    Hours: {value_or_unknown(project, "start_time")} to {value_or_unknown(project, "end_time")}<br>
-    Mode affected: {value_or_unknown(project, "mode_affected")}<br>
-    Friction level: {value_or_unknown(project, "friction_level")}<br>
-    Notes: {value_or_unknown(project, "notes")}
+    <b>{value_or_unknown(project, 'project_name')}</b><br>
+    Responsible party: {value_or_unknown(project, 'responsible_party')}<br>
+    Location: {value_or_unknown(project, 'location')}<br>
+    Impact: {value_or_unknown(project, 'impact_type')}<br>
+    Traffic management: {value_or_unknown(project, 'traffic_management')}<br>
+    Hours: {value_or_unknown(project, 'start_time')} to {value_or_unknown(project, 'end_time')}<br>
+    Mode affected: {value_or_unknown(project, 'mode_affected')}<br>
+    Verification: {value_or_unknown(project, 'verification_status')}<br>
+    Geometry: {geometry_note}<br>
+    Notes: {value_or_unknown(project, 'confidence_notes')}<br>
     """
 
 
-def create_map(stations, construction, mode):
-    transit_map = folium.Map(location=HOBOKEN_CENTER, zoom_start=14, tiles="CartoDB positron")
+def line_color(project):
+    return "red" if str(project.get("friction_level", "")).lower() in {"high", "severe"} else "orange"
 
+
+def build_map(stations, construction, bike_mode, use_road_geometry):
+    """Build a new Folium map each rerun so layers cannot duplicate across reruns."""
+    transit_map = folium.Map(location=HOBOKEN_CENTER, zoom_start=14, tiles="CartoDB positron")
     bike_layer = folium.FeatureGroup(name="Citi Bike stations", show=True)
 
     for _, station in stations.iterrows():
         popup_html = f"""
-        <b>{station["name"]}</b><br>
-        Bikes available: {station["num_bikes_available"]}<br>
-        Docks available: {station["num_docks_available"]}<br>
-        Capacity: {station["capacity"]}<br>
-        Bike friction: {station["bike_friction"] if pd.notna(station["bike_friction"]) else "unknown"}<br>
-        Combined friction: {station["combined_friction"] if pd.notna(station["combined_friction"]) else "unknown"}<br>
-        Mode: {mode}
+        <b>{station['name']}</b><br>
+        Bikes available: {station['num_bikes_available']}<br>
+        Docks available: {station['num_docks_available']}<br>
+        Capacity: {station['capacity']}<br>
+        Bike friction: {station['bike_friction'] if pd.notna(station['bike_friction']) else 'unknown'}<br>
+        Weather friction: {station['weather_friction'] if pd.notna(station['weather_friction']) else 'unavailable'}<br>
+        Construction friction: {station['construction_friction']}<br>
+        Combined friction: {station['combined_friction'] if pd.notna(station['combined_friction']) else 'unknown'}<br>
+        Bike mode: {bike_mode}
         """
-
         folium.CircleMarker(
-            location=[station["lat"], station["lon"]],
-            radius=7,
-            color=friction_color(station),
-            fill=True,
-            fill_color=friction_color(station),
-            fill_opacity=0.8,
-            popup=folium.Popup(popup_html, max_width=300),
+            location=[station["lat"], station["lon"]], radius=7, color=score_color(station),
+            fill=True, fill_color=score_color(station), fill_opacity=0.8,
+            popup=folium.Popup(popup_html, max_width=320),
         ).add_to(bike_layer)
-
     bike_layer.add_to(transit_map)
+
+    graph = None
+    graph_error = None
+    if use_road_geometry and not construction.empty and (construction["geometry_type"].str.lower() == "line").any():
+        graph, graph_error = get_hoboken_graph()
 
     if not construction.empty:
         construction_layer = folium.FeatureGroup(name="Construction impacts", show=True)
         for _, project in construction.iterrows():
             geometry_type = str(project.get("geometry_type", "point")).lower()
-            popup = folium.Popup(construction_popup(project), max_width=360)
-
             if geometry_type == "line":
-                line_columns = ["start_lat", "start_lon", "end_lat", "end_lon"]
-                if project[line_columns].isna().any():
+                columns = ["start_lat", "start_lon", "end_lat", "end_lon"]
+                if any(pd.isna(project.get(column)) for column in columns):
                     continue
+
+                coordinates = [[project["start_lat"], project["start_lon"]], [project["end_lat"], project["end_lon"]]]
+                geometry_note = "straight approximate anchor line"
+                if graph is not None:
+                    route, route_error = route_between_anchors(
+                        graph, project["start_lat"], project["start_lon"], project["end_lat"], project["end_lon"]
+                    )
+                    if route:
+                        coordinates = route["coordinates"]
+                        geometry_note = f"road-snapped OpenStreetMap route ({route['route_length_m']} m)"
+                    else:
+                        geometry_note = f"straight fallback: {route_error}"
+                elif use_road_geometry:
+                    geometry_note = f"straight fallback: {graph_error}"
+
                 folium.PolyLine(
-                    locations=[
-                        [project["start_lat"], project["start_lon"]],
-                        [project["end_lat"], project["end_lon"]],
-                    ],
-                    color=line_color(project.get("friction_level")),
-                    weight=5,
-                    opacity=0.85,
-                    dash_array="8, 8",
-                    tooltip=f"Construction impact: {value_or_unknown(project, 'street')}",
-                    popup=popup,
+                    locations=coordinates, color=line_color(project), weight=5, opacity=0.85,
+                    dash_array="8, 8", tooltip=f"Construction impact: {value_or_unknown(project, 'street')}",
+                    popup=folium.Popup(construction_popup(project, geometry_note), max_width=380),
                 ).add_to(construction_layer)
             else:
                 if pd.isna(project.get("lat")) or pd.isna(project.get("lon")):
@@ -228,148 +191,127 @@ def create_map(stations, construction, mode):
                 folium.Marker(
                     location=[project["lat"], project["lon"]],
                     tooltip=f"Construction: {value_or_unknown(project, 'street')}",
-                    popup=popup,
+                    popup=folium.Popup(construction_popup(project, "manual point coordinate"), max_width=380),
                     icon=folium.Icon(color="blue", icon="wrench", prefix="fa"),
                 ).add_to(construction_layer)
         construction_layer.add_to(transit_map)
 
     folium.LayerControl(collapsed=False).add_to(transit_map)
+    return transit_map, graph_error
 
-    return transit_map
+
+def add_scores(stations, weather_friction, construction, bike_mode, impact_mode, score_mode):
+    need_bike = bike_mode == MODE_NEED_BIKE
+    stations = stations.copy()
+    stations["bike_friction"] = stations.apply(lambda row: calculate_bike_friction(row, need_bike), axis=1)
+    stations["weather_friction"] = weather_friction
+
+    construction_results = stations.apply(
+        lambda row: calculate_construction_friction(row, construction, impact_mode), axis=1
+    )
+    stations["construction_friction"] = construction_results.apply(lambda result: result["score"])
+    stations["nearest_construction_project"] = construction_results.apply(lambda result: result["nearest_project"])
+    stations["nearest_construction_distance_m"] = construction_results.apply(lambda result: result["nearest_distance_m"])
+
+    weights = BASELINE_WEIGHTS if score_mode == BASELINE_MODE else EXPERIMENTAL_WEIGHTS
+    stations["combined_friction"] = stations.apply(
+        lambda row: combine_scores(
+            {
+                "bike": row["bike_friction"], "weather": weather_friction,
+                "construction": row["construction_friction"] if score_mode == EXPERIMENTAL_MODE else None,
+            }, weights
+        ), axis=1,
+    )
+    return stations
 
 
-def show_metrics(stations, weather_friction):
+def show_metrics(stations, weather_friction, score_mode):
     valid_scores = stations["combined_friction"].dropna()
-
-    station_count = len(stations)
-    average_friction = round(valid_scores.mean(), 1) if not valid_scores.empty else "unknown"
-
-    if valid_scores.empty:
-        highest_station = "unknown"
-    else:
-        highest_row = stations.loc[stations["combined_friction"].idxmax()]
-        highest_station = f"{highest_row['name']} ({highest_row['combined_friction']})"
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Stations", station_count)
-    col2.metric("Weather friction", weather_friction if weather_friction is not None else "N/A")
-    col3.metric("Average combined friction", average_friction)
-    st.metric("Highest friction station", highest_station)
+    highest = "unknown"
+    if not valid_scores.empty:
+        row = stations.loc[stations["combined_friction"].idxmax()]
+        highest = f"{row['name']} ({row['combined_friction']})"
+    columns = st.columns(4)
+    columns[0].metric("Stations", len(stations))
+    columns[1].metric("Weather friction", weather_friction if weather_friction is not None else "N/A")
+    columns[2].metric("Average combined friction", round(valid_scores.mean(), 1) if not valid_scores.empty else "unknown")
+    columns[3].metric("Scoring mode", "baseline" if score_mode == BASELINE_MODE else "experimental")
+    st.caption(f"Highest friction station: {highest}")
 
 
 def main():
     st.set_page_config(page_title="Hoboken Transit Friction Map", layout="wide")
-
     st.title("Hoboken Transit Friction Map")
-    st.write(
-        "Google Maps tells you the fastest route. This project tries to show why movement "
-        "through a city becomes harder in certain places."
-    )
-    st.write(
-        "This early prototype uses live Citi Bike and National Weather Service data. A small "
-        "manual construction impact layer is included to test points and street segments."
-    )
+    st.write("Google Maps tells you the fastest route. This project tries to show why movement through a city becomes harder in certain places.")
+    st.caption("Early research prototype: live Citi Bike and weather data, plus a reviewed manual construction layer.")
 
-    mode = st.radio(
-        "Bike friction mode",
-        [MODE_NEED_BIKE, MODE_NEED_DOCK],
-        help="This changes whether the score focuses on bikes available or docks available.",
-    )
+    with st.sidebar:
+        st.header("Controls")
+        bike_mode = st.radio("Citi Bike availability mode", [MODE_NEED_BIKE, MODE_NEED_DOCK])
+        impact_mode = st.selectbox("Travel or impact mode", ["All", "Biking", "Walking", "Driving", "Parking"])
+        score_mode = st.radio("Scoring mode", [BASELINE_MODE, EXPERIMENTAL_MODE])
+        use_road_geometry = st.checkbox("Try road-snapped construction lines", value=True)
+        if st.button("Refresh live Citi Bike and weather data"):
+            fetch_citibike_data.clear()
+            fetch_weather_data.clear()
+            st.rerun()
+        st.caption("The Citi Bike control changes station availability friction. The impact-mode filter changes which construction rows are relevant.")
 
-    if st.button("Refresh live data"):
-        st.cache_data.clear()
-        st.rerun()
-
-    st.caption("Rerunning or refreshing pulls the latest Citi Bike and weather data.")
-
-    st.subheader("Hoboken weather")
     weather_period = None
     weather_friction = None
+    st.subheader("Hoboken weather")
     try:
-        weather_period = load_weather_data()
+        weather_period = fetch_weather_data()
         weather_friction = calculate_weather_friction(weather_period)
         st.write(
-            f"**{weather_period.get('name', 'Near-term forecast')}:** "
-            f"{weather_period.get('temperature', 'Unknown')}°"
-            f"{weather_period.get('temperatureUnit', '')}, "
-            f"{weather_period.get('shortForecast', 'Forecast unavailable')}. "
-            f"Wind: {weather_period.get('windSpeed', 'unknown')} "
-            f"{weather_period.get('windDirection', '')}."
+            f"**{weather_period.get('name', 'Near-term forecast')}:** {weather_period.get('temperature', 'Unknown')}°"
+            f"{weather_period.get('temperatureUnit', '')}, {weather_period.get('shortForecast', 'Forecast unavailable')}. "
+            f"Wind: {weather_period.get('windSpeed', 'unknown')} {weather_period.get('windDirection', '')}."
         )
         st.caption(f"Simple weather friction score: {weather_friction}/100")
-    except (requests.RequestException, KeyError, IndexError) as error:
-        st.warning(f"Weather data is not available right now: {error}")
-        st.caption("Combined scores are using bike friction only until weather data returns.")
+    except (requests.RequestException, KeyError, IndexError, ValueError) as error:
+        st.warning(f"Weather component is unavailable right now: {error}")
+        st.caption("Scores automatically use the remaining available components.")
 
     try:
-        stations = load_citibike_data()
-    except (requests.RequestException, KeyError) as error:
-        st.error(f"Could not load live Citi Bike data: {error}")
+        stations = fetch_citibike_data()
+    except (requests.RequestException, KeyError, ValueError) as error:
+        st.error(f"Citi Bike component is unavailable right now: {error}")
         st.stop()
-
     if stations.empty:
         st.warning("No Citi Bike stations were found in the Hoboken filter area.")
         st.stop()
 
-    stations["bike_friction"] = stations.apply(lambda row: calculate_friction(row, mode), axis=1)
-    stations["combined_friction"] = stations["bike_friction"].apply(
-        lambda score: calculate_combined_friction(score, weather_friction)
-    )
     construction = load_construction_data()
-
-    show_metrics(stations, weather_friction)
-
-    display_columns = [
-        "name",
-        "lat",
-        "lon",
-        "num_bikes_available",
-        "num_docks_available",
-        "capacity",
-        "bike_friction",
-        "combined_friction",
-    ]
+    filtered_construction = construction[
+        construction.apply(lambda project: project_affects_mode(project, impact_mode), axis=1)
+    ].copy() if not construction.empty else construction
+    stations = add_scores(stations, weather_friction, filtered_construction, bike_mode, impact_mode, score_mode)
+    show_metrics(stations, weather_friction, score_mode)
 
     st.subheader("Stations near Hoboken")
-    st.dataframe(
-        stations[display_columns].sort_values("combined_friction", ascending=False),
-        use_container_width=True,
-        hide_index=True,
-    )
+    station_columns = [
+        "name", "num_bikes_available", "num_docks_available", "capacity", "bike_friction",
+        "weather_friction", "construction_friction", "combined_friction",
+        "nearest_construction_project", "nearest_construction_distance_m",
+    ]
+    st.dataframe(stations[station_columns].sort_values("combined_friction", ascending=False), use_container_width=True, hide_index=True)
 
     st.subheader("Map")
-    st.caption(
-        "Bike circles are colored by combined friction when weather is available. "
-        "Construction impacts are separate: blue markers are points and dashed lines are street segments."
-    )
-    st_folium(
-        create_map(stations, construction, mode),
-        width=None,
-        height=600,
-    )
+    st.caption("Station colors use the selected score. Construction points are blue; dashed lines are road-snapped when possible, otherwise labeled as straight fallbacks. Map data © OpenStreetMap contributors.")
+    transit_map, graph_error = build_map(stations, filtered_construction, bike_mode, use_road_geometry)
+    if graph_error and use_road_geometry:
+        st.info(f"Road-snapped construction lines are unavailable right now. Straight fallback lines are shown instead. {graph_error}")
+    st_folium(transit_map, width=None, height=620, key="hoboken_friction_map_v2")
 
-    if not construction.empty:
-        st.subheader("Construction layer")
-        st.caption(
-            "These rows were manually transcribed. Point and line coordinates are approximate "
-            "and need verification."
-        )
+    if not filtered_construction.empty:
+        st.subheader("Construction impacts")
+        st.caption("Filtered for the selected impact mode. Rows are manually maintained; verification and active status are shown before they affect experimental scoring.")
         construction_columns = [
-            "project_name",
-            "geometry_type",
-            "street",
-            "start_date",
-            "end_date",
-            "impact_type",
-            "traffic_management",
-            "notes",
+            "project_name", "geometry_type", "street", "impact_type", "mode_affected", "active_status",
+            "verification_status", "geometry_method", "confidence_notes",
         ]
-        available_columns = [column for column in construction_columns if column in construction.columns]
-        st.dataframe(
-            construction[available_columns],
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.dataframe(filtered_construction[[column for column in construction_columns if column in filtered_construction]], use_container_width=True, hide_index=True)
 
 
 if __name__ == "__main__":
