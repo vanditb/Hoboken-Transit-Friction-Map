@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+cache/
+data/hoboken_street_graph.graphml
+data/history/*
+!data/history/.gitkeep

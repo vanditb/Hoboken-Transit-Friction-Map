@@ -3,3 +3,4 @@ pandas
 requests
 folium
 streamlit-folium
+osmnx==2.0.7
