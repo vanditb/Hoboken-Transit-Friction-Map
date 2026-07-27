@@ -28,7 +28,17 @@ REQUIRED_COLUMNS = [
     "end_lon",
     "source_url",
     "notes",
+    "verification_status",
+    "verified_at",
+    "active_status",
+    "coordinate_source",
+    "geometry_method",
+    "source_text",
+    "confidence_notes",
 ]
+
+ALLOWED_VERIFICATION_STATUSES = {"verified", "partially_verified", "unverified"}
+ALLOWED_ACTIVE_STATUSES = {"active", "scheduled", "expired", "unknown"}
 
 
 def main():
@@ -45,6 +55,21 @@ def main():
     else:
         print("All expected columns are present.")
 
+    invalid_verification = construction[
+        ~construction["verification_status"].fillna("unverified").isin(ALLOWED_VERIFICATION_STATUSES)
+    ]
+    invalid_active = construction[
+        ~construction["active_status"].fillna("unknown").isin(ALLOWED_ACTIVE_STATUSES)
+    ]
+    if invalid_verification.empty:
+        print("Verification statuses are valid.")
+    else:
+        print(f"Warning: {len(invalid_verification)} rows have invalid verification_status values.")
+    if invalid_active.empty:
+        print("Active statuses are valid.")
+    else:
+        print(f"Warning: {len(invalid_active)} rows have invalid active_status values.")
+
     point_rows = construction[construction["geometry_type"].str.lower() == "point"]
     line_rows = construction[construction["geometry_type"].str.lower() == "line"]
 
@@ -60,6 +85,16 @@ def main():
         print(f"Warning: {missing_line_coords} line rows are missing start/end coordinates.")
     else:
         print("Line rows have start/end coordinates.")
+
+    missing_geometry_method = construction["geometry_method"].isna().sum()
+    if missing_geometry_method:
+        print(f"Warning: {missing_geometry_method} rows are missing geometry_method.")
+    else:
+        print("Rows include a geometry method.")
+
+    expired_count = (construction["active_status"] == "expired").sum()
+    unknown_count = (construction["active_status"] == "unknown").sum()
+    print(f"Expired rows: {expired_count}; unknown-status rows: {unknown_count}.")
 
     geometry_counts = construction["geometry_type"].value_counts(dropna=False)
     print("\nGeometry types:")
